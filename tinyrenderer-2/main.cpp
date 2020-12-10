@@ -4,6 +4,7 @@
 #include "tgaimage.h"
 #include "geometry.h"
 #include <algorithm>
+#include "model.h"
 
 const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red   = TGAColor(255, 0,   0,   255);
@@ -86,7 +87,7 @@ vec3 barycentric(vec2 *pts, vec2& v){
 
 bool in_triangle(vec2 *pts, vec2& v){
     vec3 result = barycentric(pts, v);
-    return result.x >0 && result.y > 0 && result.z >0;
+    return result.x >=0 && result.y >= 0 && result.z >=0;
 }
 
 void triangle_2(vec2 t0, vec2 t1, vec2 t2, TGAImage &image, TGAColor color) {
@@ -98,14 +99,14 @@ void triangle_2(vec2 t0, vec2 t1, vec2 t2, TGAImage &image, TGAColor color) {
     vec2 clamp(image.get_width()-1, image.get_height()-1); 
     for(int i=0;i<3;i++){
         for(int j=0;j<2;j++){
-            max_bouding[j] = std::min(clamp[j], std::max(max_bouding[j], pts[i][j]));
             min_bouding[j] = std::max(0., std::min(min_bouding[j], pts[i][j]));
+            max_bouding[j] = std::min(clamp[j], std::max(max_bouding[j], pts[i][j]));
         }
     }
     std::cout << "max_bouding " <<max_bouding<<"min_bouding"<<min_bouding<<std::endl;
     vec2 p;
-    for (p.x=min_bouding.x;p.x<max_bouding.x;p.x++){
-        for (p.y=min_bouding.y;p.y<max_bouding.y;p.y++){
+    for (p.x=min_bouding.x;p.x<=max_bouding.x;p.x++){
+        for (p.y=min_bouding.y;p.y<=max_bouding.y;p.y++){
             if(in_triangle(pts, p)){
                 image.set(p.x, p.y, color);
             }
@@ -116,7 +117,8 @@ void triangle_2(vec2 t0, vec2 t1, vec2 t2, TGAImage &image, TGAColor color) {
 
 }
 
-int main(int argc, char** argv) {
+
+void drawThreeTriangle(){
     TGAImage image(width, height, TGAImage::RGB);
 
     vec2 t0[3] = {vec2(10, 70),   vec2(50, 160),  vec2(70, 80)};
@@ -130,6 +132,83 @@ int main(int argc, char** argv) {
 
     image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
     image.write_tga_file("output.tga");
+}
+
+void drawModelWithLight(int argc, char** argv){
+    Model *model = NULL;    
+    if (2==argc) {
+        model = new Model(argv[1]);
+    } else {
+        model = new Model("obj/african_head.obj");
+    }
+    int image_width = 400;
+    int image_height = 400;
+    TGAImage image(image_width, image_height, TGAImage::RGB);
+    vec3 light_dir = vec3(0,0,-1.);
+    for (int i=0; i<model->nfaces(); i++) {
+        std::vector<int> face = model->face(i);
+        std::vector<vec2> screen_coords = {};
+        std::vector<vec3> world_coords_list = {};
+        for (int j=0; j<3; j++) {
+            vec3 world_coords  = model->vert(face[j]);
+            int x0 = (world_coords .x+1.)*image_width/2.;
+            int y0 = (world_coords .y+1.)*image_height/2.;
+            screen_coords.push_back(vec2(x0,y0));
+            world_coords_list.push_back(world_coords);
+            
+        }
+        vec3 normal = cross(world_coords_list[2] - world_coords_list[0],world_coords_list[1]-world_coords_list[0]);
+        normal = normal.normalize();
+        double n = normal * light_dir;
+        if (n>0)
+        {
+            TGAColor color = TGAColor(n * 255, n * 255,   n * 255,   255);
+            triangle_2(screen_coords[0], screen_coords[1], screen_coords[2], image, color);
+        }        
+
+    }
+
+    image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
+    image.write_tga_file("output_model_with_light.tga");
+    delete model;
+}
+
+void drawModel(int argc, char** argv){
+    Model *model = NULL;
+    if (2==argc) {
+        model = new Model(argv[1]);
+    } else {
+        model = new Model("obj/african_head.obj");
+    }
+    int image_width = 400;
+    int image_height = 400;
+    TGAImage image(image_width, image_height, TGAImage::RGB);
+    for (int i=0; i<model->nfaces(); i++) {
+        std::vector<int> face = model->face(i);
+        std::vector<vec2> screen_coords = {};
+        for (int j=0; j<3; j++) {
+            vec3 world_coords  = model->vert(face[j]);
+            int x0 = (world_coords .x+1.)*image_width/2.;
+            int y0 = (world_coords .y+1.)*image_height/2.;
+            screen_coords.push_back(vec2(x0,y0));
+            
+        }
+        
+        TGAColor color = TGAColor(rand()%255, rand()%255,   rand()%255,   255);
+        triangle_2(screen_coords[0], screen_coords[1], screen_coords[2], image, color);
+
+    }
+
+    image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
+    image.write_tga_file("output_model.tga");
+    delete model;
+}
+
+
+int main(int argc, char** argv) {
+    drawThreeTriangle();
+    drawModel(argc, argv);
+    drawModelWithLight(argc, argv);
     return 0;
 }
 
