@@ -69,18 +69,23 @@ void triangle(vec2 t0, vec2 t1, vec2 t2, TGAImage &image, TGAColor color) {
     }
 }
 
-bool in_triangle(vec2 *pts, vec2& v){
+vec3 barycentric(vec2 *pts, vec2& v){
     // ab ac  pa
     vec2 ab = pts[1] - pts[0];
     vec2 ac = pts[2] - pts[0];
     vec2 pa = pts[0] - v;
     vec3 result = cross(vec3(ab.x,ac.x,pa.x),vec3(ab.y,ac.y,pa.y));
-    std::cout << "result " <<result << std::endl;
     if (std::abs(result.z) < 1)
     {
-        return false;
+        return vec3(-1,1,1);
     }
     result = vec3(1.f-(result.x+result.y)/result.z,result.x/result.z,result.y/result.z);
+    return result;
+}
+
+
+bool in_triangle(vec2 *pts, vec2& v){
+    vec3 result = barycentric(pts, v);
     return result.x >0 && result.y > 0 && result.z >0;
 }
 
