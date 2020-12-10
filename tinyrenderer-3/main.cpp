@@ -75,6 +75,7 @@ void triangle(vec3 t0, vec3 t1, vec3 t2, TGAImage &image, TGAColor color, float*
             p.z = 0;
             p.z = barycentric_coord.x * pts[0][2] + barycentric_coord.y * pts[1][2]  +barycentric_coord.z * pts[2][2] ;
             int idx = p.x + p.y * image.get_width();
+            // 由于摄像机的方向是-z，也就是z越大，离摄像机就越近
             if(z_buffer[idx] < p.z){
                 z_buffer[idx] = p.z;
                 image.set(p.x, p.y, color);
