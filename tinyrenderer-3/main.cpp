@@ -49,9 +49,11 @@ vec3 barycentric(vec3 *pts, vec3& v){
     return result;
 }
 
+void printColor(const char *str, TGAColor color){
+    std::cout <<str << "r " << int(color.r) << " g " << int(color.g) << " b " << int(color.b)  <<std::endl;
+}
 
-
-void triangle(vec3 t0, vec3 t1, vec3 t2, TGAImage &image, TGAColor color, float* z_buffer) {
+void triangle(vec3 t0, vec3 t1, vec3 t2, TGAImage &image, float intensity, float* z_buffer, TGAImage &diffuse, vec2 *uvs) {
     //    计算boundingbox 
     // 遍历范围内的x 和y  判断是否在三角形范围内
     vec3 pts[3] = {t0,t1,t2};
@@ -66,6 +68,12 @@ void triangle(vec3 t0, vec3 t1, vec3 t2, TGAImage &image, TGAColor color, float*
     }
     std::cout << "max_bouding " <<max_bouding<<"min_bouding"<<min_bouding<<std::endl;
     vec3 p;
+    int diffuse_width = diffuse.get_width();
+    int diffuse_height = diffuse.get_height();
+
+    std::cout << "uvs[0]"<<uvs[0].x << " "<<uvs[0].y<<::std::endl;
+    std::cout << "uvs[1]"<<uvs[1].x << " "<<uvs[1].y<<::std::endl;
+    std::cout << "uvs[2]"<<uvs[2].x << " "<<uvs[2].y<<::std::endl;
     for (p.x=min_bouding.x;p.x<=max_bouding.x;p.x++){
         for (p.y=min_bouding.y;p.y<=max_bouding.y;p.y++){
             vec3 barycentric_coord = barycentric(pts, p);
@@ -75,10 +83,32 @@ void triangle(vec3 t0, vec3 t1, vec3 t2, TGAImage &image, TGAColor color, float*
             p.z = 0;
             p.z = barycentric_coord.x * pts[0][2] + barycentric_coord.y * pts[1][2]  +barycentric_coord.z * pts[2][2] ;
             int idx = p.x + p.y * image.get_width();
+
+            float u = barycentric_coord.x * uvs[0][0] + barycentric_coord.y * uvs[1][0]  +barycentric_coord.z * uvs[2][0] ;
+            float v = barycentric_coord.x * uvs[0][1] + barycentric_coord.y * uvs[1][1]  +barycentric_coord.z * uvs[2][1] ;
+            vec2 uv_coord = vec2(u, v);
+            vec2 uv_coord1;
+            for(int i=0;i<3;i++)
+            {
+                uv_coord1 = uv_coord1 + (barycentric_coord[i] * uvs[i]);
+                
+            }
+
+            std::cout << "uv_coord " <<uv_coord << "uv_coord1 " <<uv_coord1<<std::endl;
+            TGAColor diffuse_color = diffuse.get(  uv_coord.x * diffuse_width ,   uv_coord.y * diffuse_height );
             // 由于摄像机的方向是-z，也就是z越大，离摄像机就越近
             if(z_buffer[idx] < p.z){
                 z_buffer[idx] = p.z;
-                image.set(p.x, p.y, color);
+                // TGAColor final_color = diffuse_color * intensity;
+                // final_color.r =  (diffuse_color.r / 255.f * color.r / 255.f ) * 255;
+                // final_color.g =  (diffuse_color.g / 255.f * color.a / 255.f ) * 255;
+                // final_color.b =  (diffuse_color.b / 255.f * color.b / 255.f ) * 255;
+                // final_color.a =(diffuse_color.a / 255.f * color.a / 255.f ) * 255;
+                // printColor("final_color", final_color);
+                printColor("diffuse_color", diffuse_color);
+                // printColor("color", color);
+                
+                image.set(p.x, p.y, diffuse_color);
             }
         }   
     }
@@ -103,6 +133,15 @@ void drawModelWithLight(int argc, char** argv){
         model = new Model("obj/african_head.obj");
     }
     TGAImage image(width, height, TGAImage::RGB);
+    TGAImage diffuse;
+    bool success = diffuse.read_tga_file("obj/african_head_diffuse.tga");
+    if (!success){
+        std::cout << "error read tga  failed" << std::endl;
+        return;
+    }
+    diffuse.flip_vertically();
+
+
     vec3 light_dir = vec3(0,0,-1.);
     int z_buffer_size = height * width;
     
@@ -115,20 +154,23 @@ void drawModelWithLight(int argc, char** argv){
         std::vector<int> face = model->face(i);
         std::vector<vec3> screen_coords = {};
         std::vector<vec3> world_coords_list = {};
+        std::vector<vec2> uvs_list = {};
         for (int j=0; j<3; j++) {
             vec3 world_coords  = model->vert(face[j]);
+            vec2 uv  = model->uv(i, j);
+            uvs_list.push_back(uv);
             vec3 screen_coord = worldNDCToScreenCoord(world_coords, width, height);
             screen_coords.push_back(screen_coord);
             world_coords_list.push_back(world_coords);
-            
         }
+        
         vec3 normal = cross(world_coords_list[2] - world_coords_list[0],world_coords_list[1]-world_coords_list[0]);
         normal = normal.normalize();
-        double n = normal * light_dir;
-        if (n>0)
+        double intensity = normal * light_dir;
+        if (intensity>0)
         {
-            TGAColor color = TGAColor(n * 255, n * 255,   n * 255,   255);
-            triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, color, z_buffer);
+            TGAColor color = TGAColor(intensity * 255, intensity * 255,   intensity * 255,   255);
+            triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, intensity, z_buffer, diffuse, &uvs_list[0]);
         }        
 
     }
